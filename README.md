@@ -1,416 +1,939 @@
 # Darwix AI Engineer Assessment
-## Overview
 
-A functional prototype covering all four assessment areas:
+A functional AI engineering prototype covering all four areas of the Darwix AI Engineer Assessment:
 
-1. Knowledge-grounded voice agent
-2. Production-oriented knowledge base and retrieval
-3. Multilingual voice interaction and localization
-4. Live call insight detection and real-time nudges
+1. **Knowledge-Grounded Voice Agent**
+2. **Production-Oriented Knowledge Base & Retrieval**
+3. **Multilingual Voice Interaction & Localization**
+4. **Live Call Insights & Real-Time Nudges**
 
-The implementation prioritizes working end-to-end flows, grounded responses, measurable tests, failure handling, and explicit production limitations.
+The implementation focuses on working end-to-end flows, grounded responses, measurable testing, failure handling, explainability, and explicit production limitations.
 
-## Q1 — Knowledge-Grounded Voice Agent
+---
 
-### Use Case
+## Table of Contents
 
-Business-loan lead qualification using synthetic business-loan product and policy data.
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Q1 — Knowledge-Grounded Voice Agent](#q1--knowledge-grounded-voice-agent)
+- [Q2 — Production-Oriented Knowledge Base](#q2--production-oriented-knowledge-base)
+- [Q3 — Multilingual Voice Interaction](#q3--multilingual-voice-interaction)
+- [Q4 — Live Call Insights](#q4--live-call-insights)
+- [Project Structure](#project-structure)
+- [Running the Prototype](#running-the-prototype)
+- [Testing Summary](#testing-summary)
+- [Evidence & Artifacts](#evidence--artifacts)
+- [Security](#security)
+- [Known Limitations](#known-limitations)
+- [Production Next Steps](#production-next-steps)
+- [Submission Walkthrough](#submission-walkthrough)
 
-The voice agent collects qualification information and uses the Q2 knowledge base for business-policy questions and objections.
+---
 
-### Qualification Rules
+# Overview
 
-- Applicant age >= 21
-- Business age >= 2 years
-- Monthly turnover >= ₹3,00,000
-- Requested amount between ₹2,00,000 and ₹25,00,000
-- Business is registered
-- Required documents can be provided
+The project demonstrates an end-to-end AI workflow for business-loan lead qualification and live call intelligence.
 
-The result is preliminary eligibility, not final loan approval.
+The system combines:
 
-### Grounding
+- A voice-based qualification agent
+- A knowledge-grounded retrieval layer
+- Synthetic business and policy documents
+- Multilingual voice interaction
+- Human escalation handling
+- Real-time transcript signal detection
+- Live nudge delivery through WebSocket
+- Automated tests
+- Latency measurement
+- Production-oriented failure and limitation analysis
 
-The ElevenLabs agent connects to the Q2 knowledge-base search API.
+The prototype intentionally avoids hiding unsupported behavior. When the available knowledge does not support an answer, the system is designed to avoid guessing and instead provide a safe fallback or escalate to a human.
 
-Unsupported questions are handled safely: the agent states when information is unavailable instead of guessing.
+---
 
-### Human Escalation
+# Architecture
 
-The agent recognizes explicit requests to speak with a human representative and moves the interaction toward human assistance.
+```text
+                         ┌─────────────────────────┐
+                         │     Synthetic Data      │
+                         │                         │
+                         │ Loan Product             │
+                         │ Eligibility Policy      │
+                         │ FAQs                    │
+                         │ Objections              │
+                         │ Required Documents      │
+                         │ Qualification Rules     │
+                         └────────────┬────────────┘
+                                      │
+                                      ▼
+                         ┌─────────────────────────┐
+                         │     Q2 Knowledge Base   │
+                         │                         │
+                         │ Cleaning                │
+                         │ PII Redaction           │
+                         │ Chunking                │
+                         │ Metadata                │
+                         │ PostgreSQL / Neon       │
+                         │ Lexical Retrieval       │
+                         └────────────┬────────────┘
+                                      │
+                                      ▼
+                         ┌─────────────────────────┐
+                         │     Q1 Voice Agent      │
+                         │                         │
+                         │ ElevenLabs              │
+                         │ Qualification Logic     │
+                         │ KB Grounding            │
+                         │ Objection Handling      │
+                         │ Human Escalation        │
+                         └────────────┬────────────┘
+                                      │
+                         ┌────────────┴────────────┐
+                         │                         │
+                         ▼                         ▼
+              ┌────────────────────┐    ┌────────────────────┐
+              │ Q3 Multilingual    │    │ Q4 Live Insights   │
+              │                    │    │                    │
+              │ Filipino/Taglish   │    │ Transcript Stream   │
+              │ Indonesian         │    │ Signal Detection    │
+              │ Localized Voice    │    │ Nudge Engine        │
+              └────────────────────┘    │ WebSocket           │
+                                        │ Live Dashboard      │
+                                        └────────────────────┘
+```
 
-### Testing
+# Q1 — Knowledge-Grounded Voice Agent
 
-Q1 automated tests: **12/12 PASS**
+## Use Case
 
-Coverage includes:
+The prototype implements a **business-loan lead qualification voice agent** using synthetic business-loan product and policy data.
 
-- Greeting handling
-- Natural name extraction
-- Complete qualification
-- Under-21 rejection
-- Business-age rejection
-- Low-turnover rejection
-- Indian currency parsing
-- Registration handling
-- Document consent
-- Financial-information objection
-- Out-of-scope fallback
-- Human escalation
+The agent collects qualification information and uses the Q2 knowledge base for policy questions, FAQs, and objections.
 
-ElevenLabs was used for the voice-agent prototype.
+The voice interface is implemented using **ElevenLabs**.
 
-No paid OpenAI API was used.
+## Qualification Rules
 
-## Q2 — Knowledge Base
+The current qualification workflow checks:
 
-### Source Data
+| Requirement | Rule |
+|---|---|
+| Applicant age | >= 21 years |
+| Business age | >= 2 years |
+| Monthly turnover | >= ₹3,00,000 |
+| Requested amount | ₹2,00,000 – ₹25,00,000 |
+| Business registration | Required |
+| Required documents | Applicant must be willing to provide them |
 
-The repository contains synthetic business-loan documents:
+The result is **preliminary eligibility**, not final loan approval.
 
-- data/loan-product.md
-- data/eligibility-policy.md
-- data/required-documents.md
-- data/loan-faq.md
-- data/objections.md
-- data/qualification-rules.md
+## Grounding
 
-### Processing Pipeline
+The ElevenLabs voice agent connects to the Q2 knowledge-base search API.
 
-`	ext
-Markdown documents
-      ↓
-Cleaning
-      ↓
-PII redaction
-      ↓
-Heading-aware chunking
-      ↓
-Metadata enrichment
-      ↓
-PostgreSQL / Neon
-      ↓
-Lexical retrieval
-      ↓
-Ranked chunks
+The knowledge base is used for business-policy questions and objection handling rather than hardcoding every answer directly into the voice prompt.
 
-The prototype uses Neon PostgreSQL with pgvector enabled.
+For unsupported questions, the agent is instructed to:
 
-The current retrieval implementation uses lexical retrieval rather than an external embedding API.
+- State that the required information is unavailable
+- Avoid inventing an answer
+- Offer a safe fallback
+- Escalate to a human when appropriate
 
-Retrieval includes:
+## Human Escalation
 
-Token normalization
-Stopword removal
-Exact phrase matching
-Heading boosts
-Category/intent routing
-Domain-aware ranking
-Retrieval Results
+The agent recognizes explicit requests such as wanting to speak with a human representative.
 
-Five retrieval tests were executed:
+The conversation is then moved toward human assistance instead of continuing to force an automated qualification flow.
 
-Test    Result
-Required documents    PASS
-Minimum monthly turnover    PASS
-Borrow amount / maximum tenure    PASS
-Guarantee approval    PASS
-Financial-information objection    PASS
+## Q1 Automated Testing
 
-Retrieval result: 5/5 PASS
+**12/12 tests passed**
+
+| Test | Result |
+|---|---|
+| Greeting handling | PASS |
+| Natural name extraction | PASS |
+| Complete qualification | PASS |
+| Under-21 rejection | PASS |
+| Business-age rejection | PASS |
+| Low-turnover rejection | PASS |
+| Indian currency parsing | PASS |
+| Registration handling | PASS |
+| Document consent | PASS |
+| Financial-information objection | PASS |
+| Out-of-scope fallback | PASS |
+| Human escalation | PASS |
 
 Detailed results:
 
+```text
+docs/Q1-TEST-RESULTS.md
+```
+
+## Voice Platform
+
+The prototype uses **ElevenLabs** for:
+
+- Voice interaction
+- Multilingual voice configuration
+- Agent prompt configuration
+- Knowledge-base tool integration
+- Recorded call testing
+
+No paid OpenAI API was used for this implementation.
+
+---
+
+# Q2 — Production-Oriented Knowledge Base
+
+## Source Data
+
+The repository contains synthetic business-loan documents:
+
+```text
+data/
+├── loan-product.md
+├── eligibility-policy.md
+├── required-documents.md
+├── loan-faq.md
+├── objections.md
+├── qualification-rules.md
+└── source-register.md
+```
+
+## Processing Pipeline
+
+```text
+Markdown Documents
+        │
+        ▼
+Content Cleaning
+        │
+        ▼
+PII Redaction
+        │
+        ▼
+Heading-Aware Chunking
+        │
+        ▼
+Metadata Enrichment
+        │
+        ▼
+PostgreSQL / Neon
+        │
+        ▼
+Lexical Retrieval
+        │
+        ▼
+Ranked Results
+        │
+        ▼
+Q1 Voice Agent
+```
+
+## Data Processing
+
+The ingestion pipeline performs:
+
+- Markdown cleanup
+- Simple PII redaction
+- Heading-aware chunking
+- Metadata enrichment
+- Document/source tracking
+- Version information
+- Category information
+- Retrieval-method metadata
+
+The prototype uses Neon PostgreSQL with pgvector enabled.
+
+## Retrieval Strategy
+
+The current implementation intentionally uses lexical retrieval rather than an external embedding API.
+
+Retrieval includes:
+
+- Token normalization
+- Stopword removal
+- Exact phrase matching
+- Heading boosts
+- Category/intent routing
+- Domain-aware ranking
+
+This provides a simple, explainable retrieval baseline without requiring a paid external embedding service.
+
+## Retrieval Testing
+
+Five retrieval scenarios were executed:
+
+| Test | Result |
+|---|---|
+| Required documents | PASS |
+| Minimum monthly turnover | PASS |
+| Borrow amount / maximum tenure | PASS |
+| Guarantee approval | PASS |
+| Financial-information objection | PASS |
+
+**Result: 5/5 retrieval tests passed**
+
+Detailed results:
+
+```text
 docs/Q2-RETRIEVAL-RESULTS.md
+```
 
-Q2 Limitation
+Test cases:
 
-Lexical retrieval can miss semantically equivalent wording that shares few lexical terms.
+```text
+docs/Q2-RETRIEVAL-TEST-CASES.md
+```
 
-A production implementation would add embedding-based retrieval and/or hybrid lexical + semantic ranking.
+## Q2 Limitation
 
-## Q3 — Multilingual Voice Interaction
+Lexical retrieval can miss semantically equivalent wording when the query shares few lexical terms with the source document.
 
-The prototype supports multilingual voice interaction using ElevenLabs.
+A production implementation could add:
 
-### Target Markets
+- Embedding-based retrieval
+- Hybrid lexical + semantic retrieval
+- Cross-encoder reranking
+- Retrieval evaluation datasets
+- Query expansion
+- More advanced metadata filtering
 
-- Philippines — Filipino / Tagalog / Taglish
-- Indonesia — Indonesian with colloquial language and English finance terminology
+The limitation is intentionally documented rather than hidden.
 
-### Recorded Calls
+---
+
+# Q3 — Multilingual Voice Interaction
+
+The prototype demonstrates multilingual voice interaction using ElevenLabs.
+
+## Target Languages
+
+### Philippines
+
+- Filipino / Tagalog
+- Taglish
+- Natural conversational phrasing
+
+### Indonesia
+
+- Indonesian
+- Colloquial conversational language
+- English finance terminology where naturally used
+
+## Recorded Calls
 
 Four recorded calls are included:
 
-`	ext
+```text
 recordings/q3/
-├── indonesia-call-01.mp4
-├── indonesia-call-02.mp4
-├── philippines-call-01.mp4
-└── philippines-call-02.mp4
+├── q3-philippines-call-01.mp4
+├── q3-philippines-call-02.mp4
+├── q3_indonesia_call_1.mp4
+└── q3_indonesia_call_2.mp4
+```
 
 Written transcripts are available under:
 
+```text
 q3-multilingual/transcripts/
-Indonesia
+├── indonesia-call-01.md
+├── indonesia-call-02.md
+├── philippines-call-01.md
+└── philippines-call-02.md
+```
 
-Two calls demonstrate:
+## Indonesia
 
-Indonesian-language interaction
-Natural conversational phrasing
-Business-loan qualification
-Currency/market clarification
-Safe handling of an unsupported Indonesia-specific policy
-Human escalation
-Philippines
+The two Indonesia calls demonstrate:
 
-Two calls demonstrate:
+- Indonesian-language interaction
+- Natural conversational phrasing
+- Business-loan qualification
+- Currency clarification
+- Market clarification
+- Safe handling of unsupported Indonesia-specific policy
+- Human escalation
 
-Filipino/Tagalog interaction
-Taglish/code-switching
-Philippine peso clarification
-Market mismatch handling
-Human escalation
+The agent identifies when the provided Indonesian Rupiah information does not fit the India-specific qualification rules and avoids silently applying the India-specific threshold.
 
-One Philippines call ended early because the ElevenLabs account reached its available credit/quota during testing. It is documented as a partial test rather than being presented as a completed scenario.
+## Philippines
 
-Important Limitation
+The two Philippines calls demonstrate:
 
-The assessment's Q3 target domains are Philippines life insurance/bancassurance and Indonesia multifinance/consumer finance.
+- Filipino/Tagalog interaction
+- Taglish/code-switching
+- Philippine Peso clarification
+- Market mismatch handling
+- Human escalation
+
+One Philippines call ended early because the ElevenLabs account reached its available quota during testing.
+
+It is documented as a **partial test** rather than being presented as a completed scenario.
+
+## Important Q3 Limitation
+
+The assessment's requested Q3 product domains are:
+
+- **Philippines:** Life insurance / bancassurance
+- **Indonesia:** Multifinance / consumer finance
 
 The current prototype reuses the business-loan qualification agent from Q1.
 
-Therefore, the multilingual implementation demonstrates language localization, code-switching, safe market/currency mismatch handling, KB grounding, and escalation, but it does not claim full production compliance with the requested market-specific insurance/finance product policies.
+Therefore, the Q3 implementation demonstrates:
 
-Configuration and gaps are documented in:
+- Language localization
+- Code-switching
+- Voice interaction
+- Market/currency mismatch handling
+- Knowledge-base grounding
+- Human escalation
 
+However, it does not claim full production compliance with the requested market-specific insurance and finance product policies.
+
+This limitation is explicitly documented in:
+
+```text
 q3-multilingual/configuration.md
 q3-multilingual/localization-comparison.md
 q3-multilingual/gaps-and-limitations.md
 q3-multilingual/terminology.md
-Q4 — Live Call Insights
+```
+
+---
+
+# Q4 — Live Call Insights
 
 Q4 implements a real-time transcript-stream simulation for live call insights.
 
-Architecture
+The system detects conversational signals and produces real-time nudges for an operator/dashboard.
+
+## Architecture
+
+```text
 Streaming Transcript
-        ↓
+        │
+        ▼
 POST /events
-        ↓
-Signal Engine
-        ↓
-┌───────────────┐
-│ Compliance    │
-│ Cross-sell    │
-│ Frustration   │
-│ Low confidence│
-└───────────────┘
-        ↓
-Nudge controls
-        ↓
-WebSocket
-        ↓
-Live Dashboard
-
-Dashboard:
-
-http://localhost:3004
-
-WebSocket:
-
-ws://localhost:3004/ws
-
-Streaming endpoint:
-
-POST http://localhost:3004/events
-Detected Signals
-Compliance risk
-Cross-sell opportunity
-Rising frustration
-Low-confidence / noisy transcript
+        │
+        ▼
+Signal Detection Engine
+        │
+        ├───────────────┐
+        │               │
+        ▼               ▼
+ Compliance          Cross-sell
+ Risk                Opportunity
+        │               │
+        ├───────────────┤
+        │               │
+        ▼               ▼
+ Frustration         Low Confidence
+ Detection           / Noise
+        │
+        ▼
 Nudge Controls
+        │
+        ▼
+WebSocket
+        │
+        ▼
+Live Dashboard
+```
+
+## Detected Signals
+
+The engine detects:
+
+- Compliance risk
+- Cross-sell opportunity
+- Rising frustration
+- Low-confidence / noisy transcript
+
+## Nudge Controls
 
 The implementation includes:
 
-Confidence threshold: 0.70
-Cooldown: 8 seconds
-Maximum repetitions: 2
-Grouping window: 3 seconds
-Priority levels
-Alert expiry: 15 seconds
-Duplicate suppression
-Scenario Testing
+| Control | Configuration |
+|---|---:|
+| Minimum confidence | 0.70 |
+| Cooldown | 8 seconds |
+| Maximum repetitions | 2 |
+| Grouping window | 3 seconds |
+| Alert expiry | 15 seconds |
+| Priority levels | Critical / High / Medium |
 
-Four scenarios were tested:
+These controls are designed to reduce repeated or noisy alerts.
 
-Cross-sell opportunity
-Compliance risk
-Rising frustration
-Noisy / ambiguous transcript
+## Dashboard
 
-Automated tests:
+The local dashboard runs at:
 
-6/6 PASS
+```text
+http://localhost:3004
+```
 
-PASS: cross-sell detection
-PASS: critical compliance detection
-PASS: compliance cooldown suppresses repetition
-PASS: frustration detection
-PASS: low-confidence noisy transcript detection
-PASS: high-confidence transcript does not trigger low-confidence alert
-Measured Latency
+WebSocket endpoint:
 
-Interactive testing:
+```text
+ws://localhost:3004/ws
+```
 
-Samples: 14
-P50: 18 ms
-P95: 155 ms
-Minimum: 4 ms
-Maximum: 155 ms
+Streaming event endpoint:
 
-Steady-state benchmark:
+```text
+POST http://localhost:3004/events
+```
 
-Samples: 100
-P50: 1.85 ms
-P95: 2.50 ms
-Minimum: 1.44 ms
-Maximum: 36.30 ms
+Health endpoint:
 
-These measurements cover the local transcript-event processing path.
+```text
+GET http://localhost:3004/health
+```
 
-They do not represent complete production audio-to-nudge latency.
+Metrics endpoint:
 
-A production deployment would additionally measure:
+```text
+GET http://localhost:3004/metrics
+```
 
-Audio capture
-Streaming ASR
-ASR finalization
-Network transport
-Signal detection
-WebSocket delivery
-Dashboard rendering
+## Scenario Testing
+
+Four main scenarios were tested:
+
+1. Cross-sell opportunity
+2. Compliance risk
+3. Rising frustration
+4. Noisy / ambiguous transcript
+
+## Q4 Automated Testing
+
+**6/6 tests passed**
+
+| Test | Result |
+|---|---|
+| Cross-sell detection | PASS |
+| Critical compliance detection | PASS |
+| Compliance cooldown suppression | PASS |
+| Frustration detection | PASS |
+| Low-confidence noisy transcript detection | PASS |
+| High-confidence transcript avoids low-confidence alert | PASS |
 
 Detailed results:
 
+```text
 q4-live-insights/docs/Q4-TEST-RESULTS.md
+```
 
-Production Considerations
+# Latency Measurements
 
-The current implementation intentionally uses a transcript-stream simulation rather than a production telephony/audio ASR pipeline.
+## Interactive Testing
 
-Production scaling would require:
+| Metric | Result |
+|---|---:|
+| Samples | 14 |
+| P50 | 18 ms |
+| P95 | 155 ms |
+| Minimum | 4 ms |
+| Maximum | 155 ms |
 
+## Steady-State Benchmark
+
+| Metric | Result |
+|---|---:|
+| Samples | 100 |
+| P50 | 1.85 ms |
+| P95 | 2.50 ms |
+| Minimum | 1.44 ms |
+| Maximum | 36.30 ms |
+
+## Measurement Scope
+
+These measurements cover the local transcript-event processing path.
+
+They do **not** represent complete production audio-to-nudge latency.
+
+A production measurement would include:
+
+```text
+Audio Capture
+     ↓
 Streaming ASR
-Audio quality monitoring
-Distributed event processing
-Horizontal workers
-Persistent event storage
-WebSocket/pub-sub infrastructure
-Per-call state management
-Observability and tracing
-Rate limiting
-Authentication and authorization
+     ↓
+ASR Finalization
+     ↓
+Network Transport
+     ↓
+Signal Detection
+     ↓
+WebSocket Delivery
+     ↓
+Dashboard Rendering
+```
 
-False positives are explicitly considered, particularly for frustration and low-confidence signals.
+This distinction is intentionally documented to avoid presenting local processing latency as complete production latency.
 
-Project Structure
+# Production Considerations
+
+The current implementation uses a transcript-stream simulation instead of a production telephony/audio ASR pipeline.
+
+A production deployment would additionally require:
+
+- Streaming ASR
+- Audio quality monitoring
+- Distributed event processing
+- Horizontal workers
+- Persistent event storage
+- WebSocket/pub-sub infrastructure
+- Per-call state management
+- Observability and tracing
+- Rate limiting
+- Authentication and authorization
+- Production telephony integration
+
+False-positive behavior is also considered, particularly for:
+
+- Frustration detection
+- Low-confidence/noisy transcripts
+- Short ambiguous phrases
+- Repeated conversational patterns
+
+---
+
+# Project Structure
+
+```text
 darwix-ai-assignment/
 ├── data/
+├── docs/
 ├── q1-voice-agent/
 ├── q2-knowledge-base/
 ├── q3-multilingual/
 ├── q4-live-insights/
-├── docs/
 ├── recordings/
 ├── transcripts/
 ├── .env.example
 ├── .gitignore
 └── README.md
-Running the Prototype
-Q2 Knowledge Base
+```
+
+# Running the Prototype
+
+## Q2 — Knowledge Base
+
+```bash
 cd q2-knowledge-base
 npm install
 npm run ingest
 npm test
 npm run dev
+```
 
 Q2 runs on:
 
+```text
 http://localhost:3002
-Q1 Voice Agent Backend
+```
+
+## Q1 — Voice Agent Backend
+
+```bash
 cd q1-voice-agent
 npm install
 npm test
 npm run dev
+```
 
 Q1 runs on:
 
+```text
 http://localhost:3001
-Q4 Live Insights
+```
+
+## Q4 — Live Insights
+
+```bash
 cd q4-live-insights
 npm install
 npm test
 npm run dev
+```
 
 Q4 runs on:
 
+```text
 http://localhost:3004
+```
 
-Run scenarios from another terminal:
+Run simulation scenarios from another terminal:
 
+```bash
 npm run simulate -- cross-sell
 npm run simulate -- compliance
 npm run simulate -- frustration
 npm run simulate -- noisy
-Evidence
+```
 
-The repository contains:
+# Testing Summary
 
-Q1 automated test results
-Q2 retrieval test results
-Q3 transcripts
-Q3 call recordings
-Q4 automated tests
-Q4 latency measurements
-Q4 scenario results
-Architecture documentation
-Localization documentation
-Production limitations
-Security
+| Area | Result |
+|---|---|
+| Q1 automated tests | **12/12 PASS** |
+| Q2 retrieval tests | **5/5 PASS** |
+| Q3 recorded calls | **4 calls** |
+| Q4 automated tests | **6/6 PASS** |
+| Q4 interactive latency samples | **14** |
+| Q4 steady-state benchmark samples | **100** |
+
+The detailed test evidence is included in the repository.
+
+# Evidence & Artifacts
+
+## Q1
+
+```text
+docs/Q1-TEST-RESULTS.md
+```
+
+Includes automated qualification and fallback tests.
+
+## Q2
+
+```text
+docs/Q2-RETRIEVAL-RESULTS.md
+docs/Q2-RETRIEVAL-TEST-CASES.md
+```
+
+Includes retrieval queries, retrieved results, scoring behavior, and test outcomes.
+
+## Q3
+
+```text
+q3-multilingual/transcripts/
+recordings/q3/
+q3-multilingual/configuration.md
+q3-multilingual/localization-comparison.md
+q3-multilingual/gaps-and-limitations.md
+q3-multilingual/terminology.md
+```
+
+## Q4
+
+```text
+q4-live-insights/docs/Q4-TEST-RESULTS.md
+```
+
+Includes scenario results, latency measurements, controls, and production limitations.
+
+# Security
 
 Secrets are excluded from source control.
 
-Use .env.example as the configuration template.
+The repository uses:
 
-Real customer information should not be committed to the repository.
+```text
+.env
+```
 
-Known Limitations
+in `.gitignore`.
+
+A configuration template is provided as:
+
+```text
+.env.example
+```
+
+No production credentials or real customer information should be committed to the repository.
+
+The assessment data used by the prototype is synthetic.
+
+# Known Limitations
 
 This submission is a functional prototype rather than a production telephony deployment.
 
 The main limitations are:
 
-Q1 uses a business-loan domain with synthetic data.
-Q2 currently uses lexical retrieval instead of external embeddings.
-Q3 demonstrates localization but reuses the Q1 business-loan domain instead of implementing the exact requested market products.
-One Philippines multilingual call was partial because of ElevenLabs quota.
-Q4 uses streaming transcript simulation rather than raw live audio + ASR.
-Q4 latency measurements therefore exclude audio capture and ASR latency.
-Production-scale infrastructure such as distributed workers, authentication, persistent event storage, and production telephony integration would still be required.
+1. **Q1 Domain**
+   - Uses a synthetic business-loan qualification domain.
+
+2. **Q2 Retrieval**
+   - Currently uses lexical retrieval rather than an external embedding API.
+
+3. **Q3 Product Domain**
+   - Demonstrates multilingual localization but reuses the Q1 business-loan domain instead of implementing the exact requested Philippines insurance and Indonesia consumer-finance products.
+
+4. **Q3 Testing**
+   - One Philippines multilingual call was partial because the ElevenLabs account reached its available quota during testing.
+
+5. **Q4 Audio Pipeline**
+   - Uses streaming transcript simulation rather than raw live audio plus production ASR.
+
+6. **Q4 Latency**
+   - Reported latency excludes audio capture and ASR processing.
+
+7. **Production Infrastructure**
+   - Distributed workers, authentication, persistent event storage, production telephony, and other production infrastructure would still be required.
 
 These limitations are intentionally documented rather than hidden.
 
-Submission Walkthrough
+# Production Next Steps
 
-The recommended demonstration order is:
+A production version could extend the prototype with:
 
-Show the repository structure.
-Demonstrate Q2 retrieval and grounding.
-Show Q1 qualification and objection handling.
-Show ElevenLabs voice-agent configuration.
-Play Q3 multilingual recordings and show transcripts.
-Open the Q4 live dashboard.
-Run cross-sell, compliance, frustration, and noisy scenarios.
-Show the automated tests and measured latency.
-Explain production limitations and next steps.
+## Knowledge Base
 
+- Hybrid lexical + vector retrieval
+- Embedding generation
+- Cross-encoder reranking
+- Automated retrieval evaluation
+- Document versioning
+- Incremental indexing
+- Better PII detection
+
+## Voice Agent
+
+- Production telephony integration
+- Streaming ASR
+- Structured call state
+- CRM/lead creation
+- Human transfer integration
+- Call outcome persistence
+- Automated quality evaluation
+
+## Multilingual
+
+- Market-specific product policies
+- Native localized terminology
+- Market-specific compliance rules
+- Native TTS voices
+- Accent and pronunciation evaluation
+- Separate knowledge bases per market
+
+## Live Insights
+
+- Streaming audio ingestion
+- Production ASR
+- Distributed event processing
+- Pub/sub infrastructure
+- Persistent call state
+- Alert analytics
+- Precision/recall monitoring
+- Operator feedback loops
+
+# Submission Walkthrough
+
+Recommended demonstration order:
+
+### 1. Repository
+
+Show:
+
+```text
+README.md
+data/
+docs/
+q1-voice-agent/
+q2-knowledge-base/
+q3-multilingual/
+q4-live-insights/
+recordings/
+```
+
+### 2. Q2 Knowledge Base
+
+Demonstrate:
+
+- Source documents
+- Ingestion
+- Retrieval
+- Five retrieval tests
+- Grounded result returned to Q1
+
+### 3. Q1 Voice Agent
+
+Demonstrate:
+
+- Qualification flow
+- Objection handling
+- Knowledge-base grounding
+- Unsupported-question fallback
+- Human escalation
+- Automated test results
+
+### 4. ElevenLabs
+
+Show:
+
+- Agent configuration
+- Knowledge-base tool
+- Qualification prompt
+- Language configuration
+
+### 5. Q3 Multilingual
+
+Play:
+
+- Indonesia calls
+- Philippines calls
+
+Show corresponding transcripts and explain the documented product-domain limitation.
+
+### 6. Q4 Live Insights
+
+Open:
+
+```text
+http://localhost:3004
+```
+
+Run:
+
+```bash
+npm run simulate -- cross-sell
+npm run simulate -- compliance
+npm run simulate -- frustration
+npm run simulate -- noisy
+```
+
+Show the resulting live nudges.
+
+### 7. Testing & Measurements
+
+Show:
+
+- Q1: 12/12
+- Q2: 5/5
+- Q4: 6/6
+- Q4 latency measurements
+
+### 8. Production Discussion
+
+Explain:
+
+- Retrieval limitations
+- Multilingual product-domain limitation
+- ASR/audio pipeline limitation
+- False-positive handling
+- Scaling requirements
+- Security considerations
+
+# Final Result
+
+The project demonstrates a working end-to-end prototype across all four assessment areas, with:
+
+- Knowledge-grounded voice interaction
+- Explainable retrieval
+- Qualification logic
+- Objection handling
+- Human escalation
+- Multilingual voice testing
+- Real-time signal detection
+- Nudge controls
+- Automated tests
+- Latency measurements
+- Production considerations
+- Explicit limitations
+
+The implementation prioritizes functional behavior, measurable results, grounded responses, and transparent limitations over purely conceptual design.
