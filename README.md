@@ -14,6 +14,7 @@ The implementation focuses on working end-to-end flows, grounded responses, meas
 ## Table of Contents
 
 - [Overview](#overview)
+- [Demo Video](#-demo-video)
 - [Architecture](#architecture)
 - [Q1 — Knowledge-Grounded Voice Agent](#q1--knowledge-grounded-voice-agent)
 - [Q2 — Production-Oriented Knowledge Base](#q2--production-oriented-knowledge-base)
@@ -50,7 +51,13 @@ The system combines:
 The prototype intentionally avoids hiding unsupported behavior. When the available knowledge does not support an answer, the system is designed to avoid guessing and instead provide a safe fallback or escalate to a human.
 
 ---
+## 🎥 Demo Video
 
+[▶️ Watch the Full Project Walkthrough](https://drive.google.com/file/d/1gxSqQkCcxX8cX-8vFs9FZxY8XHtL6dGW/view?usp=sharing)
+
+The walkthrough covers the project architecture, Q1 voice agent, Q2 knowledge base and retrieval, Q3 multilingual testing, Q4 real-time call insights, live demonstrations, limitations, and production improvements.
+
+---
 # Architecture
 
 ```text
