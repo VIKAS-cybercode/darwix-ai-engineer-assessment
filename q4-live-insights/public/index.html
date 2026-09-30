@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Darwix AI - Live Call Insights</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f5f7fa;
+      color: #1f2937;
+    }
+
+    header {
+      padding: 20px 28px;
+      background: #111827;
+      color: white;
+    }
+
+    header h1 {
+      margin: 0 0 6px;
+      font-size: 24px;
+    }
+
+    header p {
+      margin: 0;
+      opacity: 0.8;
+    }
+
+    .status {
+      padding: 12px 28px;
+      background: white;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .connected {
+      color: #15803d;
+      font-weight: bold;
+    }
+
+    .disconnected {
+      color: #b91c1c;
+      font-weight: bold;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      padding: 20px 28px;
+    }
+
+    section {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    section h2 {
+      margin: 0;
+      padding: 14px 18px;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 17px;
+    }
+
+    #transcript,
+    #nudges {
+      height: 520px;
+      overflow-y: auto;
+      padding: 14px;
+    }
+
+    .transcript-item {
+      padding: 12px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      background: #f9fafb;
+      border-left: 4px solid #9ca3af;
+    }
+
+    .transcript-item.customer {
+      border-left-color: #2563eb;
+    }
+
+    .transcript-item.agent {
+      border-left-color: #6b7280;
+    }
+
+    .speaker {
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .meta {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 6px;
+    }
+
+    .nudge {
+      padding: 14px;
+      margin-bottom: 12px;
+      border-radius: 8px;
+      border-left: 5px solid #6b7280;
+      background: #f9fafb;
+    }
+
+    .nudge.critical {
+      border-left-color: #b91c1c;
+      background: #fef2f2;
+    }
+
+    .nudge.high {
+      border-left-color: #c2410c;
+      background: #fff7ed;
+    }
+
+    .nudge.medium {
+      border-left-color: #ca8a04;
+      background: #fefce8;
+    }
+
+    .nudge-header {
+      display: flex;
+      justify-content: space-between;
+      font-weight: bold;
+      margin-bottom: 7px;
+    }
+
+    .empty {
+      color: #9ca3af;
+      text-align: center;
+      padding: 60px 20px;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Live Call Insights</h1>
+    <p>Darwix AI ? Streaming signal detection and agent nudges</p>
+  </header>
+
+  <div class="status">
+    WebSocket status:
+    <span id="status" class="disconnected">Connecting...</span>
+  </div>
+
+  <main>
+    <section>
+      <h2>Live Transcript</h2>
+      <div id="transcript">
+        <div class="empty">Waiting for transcript events...</div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Live Nudges</h2>
+      <div id="nudges">
+        <div class="empty">No nudges yet...</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const transcript = document.getElementById("transcript");
+    const nudges = document.getElementById("nudges");
+    const status = document.getElementById("status");
+
+    let socket;
+
+    function connect() {
+      socket = new WebSocket(`ws://${location.host}/ws`);
+
+      socket.onopen = () => {
+        status.textContent = "Connected";
+        status.className = "connected";
+      };
+
+      socket.onclose = () => {
+        status.textContent = "Disconnected ? retrying...";
+        status.className = "disconnected";
+
+        setTimeout(connect, 1500);
+      };
+
+      socket.onerror = () => {
+        status.textContent = "Connection error";
+        status.className = "disconnected";
+      };
+
+      socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type !== "transcript") {
+          return;
+        }
+
+        addTranscript(data);
+
+        for (const nudge of data.nudges || []) {
+          addNudge(nudge);
+        }
+      };
+    }
+
+    function addTranscript(data) {
+      const empty = transcript.querySelector(".empty");
+
+      if (empty) {
+        empty.remove();
+      }
+
+      const item = document.createElement("div");
+      item.className = `transcript-item ${data.chunk.speaker}`;
+
+      item.innerHTML = `
+        <div class="speaker">${escapeHtml(data.chunk.speaker)}</div>
+        <div>${escapeHtml(data.chunk.text)}</div>
+        <div class="meta">
+          Confidence: ${data.chunk.confidence.toFixed(2)}
+          ? Processing: ${data.processingMs.toFixed(2)} ms
+          ? End-to-end: ${data.ingestToProcessMs} ms
+        </div>
+      `;
+
+      transcript.appendChild(item);
+      transcript.scrollTop = transcript.scrollHeight;
+    }
+
+    function addNudge(nudge) {
+      const empty = nudges.querySelector(".empty");
+
+      if (empty) {
+        empty.remove();
+      }
+
+      const item = document.createElement("div");
+      item.className = `nudge ${nudge.priority}`;
+
+      const remainingSeconds = Math.max(
+        0,
+        Math.round((nudge.expiresAt - Date.now()) / 1000)
+      );
+
+      item.innerHTML = `
+        <div class="nudge-header">
+          <span>${escapeHtml(nudge.signalType)}</span>
+          <span>${escapeHtml(nudge.priority.toUpperCase())}</span>
+        </div>
+
+        <div>${escapeHtml(nudge.message)}</div>
+
+        <div class="meta">
+          Confidence: ${nudge.confidence.toFixed(2)}
+          ? Expires in approximately ${remainingSeconds}s
+        </div>
+      `;
+
+      nudges.prepend(item);
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    connect();
+  </script>
+</body>
+</html>

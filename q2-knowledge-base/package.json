@@ -1,0 +1,25 @@
+{
+  "name": "darwix-q2-knowledge-base",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "ingest": "tsx src/ingest.ts",
+    "retrieve": "tsx src/retrieve.ts",
+    "test-retrieval": "tsx src/retrieval-tests.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.7",
+    "express": "^5.2.1",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,8 @@
+node_modules/
+.env
+dist/
+coverage/
+*.log
+recordings/*.mp3
+recordings/*.wav
+recordings/*.m4a
